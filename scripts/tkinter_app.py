@@ -31,6 +31,9 @@ class Game(tk.Frame):
         # Creating main window
         self.top_value = 2048
         self.grid_size = 6
+        self.sw = self.master.winfo_screenwidth()
+        self.sh = self.master.winfo_screenheight()
+
         self.make_GUI()
         self.create_button()
         self.start_game()
@@ -57,8 +60,12 @@ class Game(tk.Frame):
                 cell_data = {'frame': cell_frame, "number": cell_number}
                 row.append(cell_data)
             self.cells.append(row)
+        w = self.grid_size*91
+        h = (self.grid_size+1)*93
+        x = (self.sw - w)/2
+        y = (self.sh - h)/2
+        self.master.geometry('%dx%d+%d+%d' % (w, h, x, y))
         
-
         act_frame = tk.Frame(self)
         act_frame.place(relx=0.10, rely=0.05, anchor="center",)
         tk.Label(
@@ -129,38 +136,29 @@ class Game(tk.Frame):
         )
         self.score = 0
 
-    def stack_combine(self):
+    def stack(self):
+        new_matrix = [[0] * self.grid_size for _ in range(self.grid_size)]
+        for row in range(self.grid_size):
+            fill_position = 0
+            for col in range(self.grid_size):
+                if self.matrix[row][col] != 0:
+                    new_matrix[row][fill_position] = self.matrix[row][col]
+                    fill_position += 1
 
-        if self.any_move():
-            new_matrix = [[0] * self.grid_size for _ in range(self.grid_size)]
-            for row in range(self.grid_size):
-                fill_position = 0
-                for col in range(self.grid_size):
-                    if self.matrix[row][col] != 0:
-                        new_matrix[row][fill_position] = self.matrix[row][col]
-                        fill_position += 1
+        self.matrix = new_matrix
 
-            for row in range(self.grid_size):
-                for col in range(self.grid_size-1):
-                    if (new_matrix[row][col] != 0) and (new_matrix[row][col] == new_matrix[row][col + 1]):
-                        new_matrix[row][col] *= 2
-                        new_matrix[row][col + 1] = 0
-                        self.score += new_matrix[row][col]
-                        if self.score > self.bstScore:
-                            self.bstScore = self.score
-                            with open("bestscore.ini", "w") as f:
-                                f.write(str(self.bstScore))
-            
-            new_matrix_2 = [[0] * self.grid_size for _ in range(self.grid_size)]
-            for row in range(self.grid_size):
-                fill_position = 0
-                for col in range(self.grid_size):
-                    if new_matrix[row][col] != 0:
-                        new_matrix_2[row][fill_position] = new_matrix[row][col]
-                        fill_position += 1
-            
-            self.matrix = new_matrix_2
-
+    def combine(self):
+        for row in range(self.grid_size):
+            for col in range(self.grid_size-1):
+                if (self.matrix[row][col] != 0) and (self.matrix[row][col] == self.matrix[row][col + 1]):
+                    self.matrix[row][col] *= 2
+                    self.matrix[row][col + 1] = 0
+                    self.score += self.matrix[row][col]
+                    if self.score > self.bstScore:
+                        self.bstScore = self.score
+                        with open("bestscore.ini", "w") as f:
+                            f.write(str(self.bstScore))
+   
     def reverse(self):
         new_matrix = []
         for row in range(self.grid_size):
@@ -177,12 +175,13 @@ class Game(tk.Frame):
         self.matrix = new_matrix
 
     def add_new_tile(self):
-        row = random.randint(0,self.grid_size-1)
-        col = random.randint(0,self.grid_size-1)
-        while(self.matrix[row][col] != 0):
+        if any(0 in row for row in self.matrix):
             row = random.randint(0,self.grid_size-1)
             col = random.randint(0,self.grid_size-1)
-        self.matrix[row][col] = random.choice([2, 4])
+            while(self.matrix[row][col] != 0):
+                row = random.randint(0,self.grid_size-1)
+                col = random.randint(0,self.grid_size-1)
+            self.matrix[row][col] = random.choice([2, 4])
 
     def update_GUI(self):
         cell_text_color = 0
@@ -214,39 +213,6 @@ class Game(tk.Frame):
         self.record_label.configure(text=self.bstScore)
         self.update_idletasks()                
 
-            
-    def left(self, event):
-        self.stack_combine()
-        self.add_new_tile()
-        self.update_GUI()
-        self.game_over()
-
-    def right(self, event):
-        self.reverse()
-        self.stack_combine()
-        self.reverse()
-        self.add_new_tile()
-        self.update_GUI()
-        self.game_over()
-
-    def up(self, event):
-        self.transpose()
-        self.stack_combine()
-        self.transpose()
-        self.add_new_tile()
-        self.update_GUI()
-        self.game_over()
-
-    def down(self, event):
-        self.transpose()
-        self.reverse()
-        self.stack_combine()
-        self.reverse()
-        self.transpose()
-        self.add_new_tile()
-        self.update_GUI()
-        self.game_over()
-
     def any_move(self):
         for i in range(self.grid_size):
             for j in range(self.grid_size-1):
@@ -257,30 +223,66 @@ class Game(tk.Frame):
 
     def game_over(self):
         if any(self.top_value in row for row in self.matrix):
-            win_window = tk.Toplevel()
-            win_window.wm_title(f"You did {self.top_value}!!")
-            win_window.geometry("200x50") 
-
-            l = tk.Label(win_window, text=f"You did {self.top_value}! Cotinue?")
-            l.grid(row=0, column=0)
-
-            b = tk.Button(win_window, text="Ok", command=win_window.destroy)
-            b.grid(row=1, column=0)
+            text = f"You did {self.top_value}!!"
+            self.popup(text, text + " Cotinue?")
             self.top_value = self.top_value*2
         elif not any(0 in row for row in self.matrix) and not self.any_move():
-            lose_window = tk.Toplevel()
-            lose_window.wm_title(f"Game Over!!")
+            self.popup("Game Over!!", "Game Over!!")
 
-            l = tk.Label(lose_window, text="Game Over!!")
-            l.grid(row=0, column=0)
+    def popup (self, win_title, win_message):
+        popup_win = tk.Toplevel()
+        popup_win.wm_title(win_title)
+        w = 200
+        h = 50
+        x = (self.sw - w)/2
+        y = (self.sh - h)/2
+        popup_win.geometry('%dx%d+%d+%d' % (w, h, x, y))
 
-            b = tk.Button(lose_window, text="Ok", command=lose_window.destroy)
-            b.grid(row=1, column=0)
+        l = tk.Label(popup_win, text=win_message)
+        l.grid(row=0, column=0)
 
+        b = tk.Button(popup_win, text="Ok", command=popup_win.destroy)
+        b.grid(row=1, column=0)
 
+    def left(self, event):
+        self.stack()
+        self.combine()
+        self.stack()
+        self.add_new_tile()
+        self.update_GUI()
+        self.game_over()
 
-def main():
-    Game()
+    def right(self, event):
+        self.reverse()
+        self.stack()
+        self.combine()
+        self.stack()
+        self.reverse()
+        self.add_new_tile()
+        self.update_GUI()
+        self.game_over()
+
+    def up(self, event):
+        self.transpose()
+        self.stack()
+        self.combine()
+        self.stack()
+        self.transpose()
+        self.add_new_tile()
+        self.update_GUI()
+        self.game_over()
+
+    def down(self, event):
+        self.transpose()
+        self.reverse()
+        self.stack()
+        self.combine()
+        self.stack()
+        self.reverse()
+        self.transpose()
+        self.add_new_tile()
+        self.update_GUI()
+        self.game_over()
 
 if __name__ == "__main__":
-    main()
+    Game()
